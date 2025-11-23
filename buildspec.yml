@@ -1,0 +1,43 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+      python: 3.11
+    commands:
+      - echo "Installing dependencies"
+      
+  pre_build:
+    commands:
+      - echo "Detecting project type"
+      - |
+        if [ -f "package.json" ]; then
+          echo "Node.js project detected"
+          npm install
+        elif [ -f "requirements.txt" ]; then
+          echo "Python project detected"
+          pip install -r requirements.txt
+        elif [ -f "pom.xml" ]; then
+          echo "Java project detected"
+          mvn clean install
+        else
+          echo "Static website detected"
+        fi
+      
+  build:
+    commands:
+      - echo "Building project"
+      - |
+        if [ -f "package.json" ]; then
+          npm run build || echo "No build script"
+        fi
+      
+  post_build:
+    commands:
+      - echo "Build completed"
+
+artifacts:
+  files:
+    - '**/*'
+  name: output.zip
