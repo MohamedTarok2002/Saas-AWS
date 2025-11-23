@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Deploy - Instant GitHub Deployment</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 50px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .deploy-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .deploy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .deploy-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status-box {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .status-box.success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+        
+        .status-box.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+        
+        .status-box.info {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+        }
+        
+        .deployment-url {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            word-break: break-all;
+        }
+        
+        .deployment-url a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .deployment-url a:hover {
+            text-decoration: underline;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .example {
+            font-size: 0.9em;
+            color: #999;
+            margin-top: 8px;
+        }
+        
+        .supported-list {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+        }
+        
+        .supported-list h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .tag {
+            padding: 8px 15px;
+            background: #e9ecef;
+            border-radius: 20px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+        
+        .tag.good {
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 DevOps Deploy</h1>
+        <p class="subtitle">Deploy your GitHub repository in seconds</p>
+        
+        <form id="deployForm">
+            <div class="form-group">
+                <label for="github_url">GitHub Repository URL</label>
+                <input 
+                    type="text" 
+                    id="github_url" 
+                    name="github_url" 
+                    placeholder="https://github.com/username/repository"
+                    required
+                >
+                <div class="example">Example: https://github.com/facebook/react</div>
+            </div>
+            
+            <button type="submit" class="deploy-btn" id="deployBtn">
+                Deploy Now
+            </button>
+        </form>
+        
+        <div id="statusBox" class="status-box"></div>
+        
+        <div class="supported-list">
+            <h3>✅ Supported Projects</h3>
+            <div class="tags">
+                <span class="tag good">React</span>
+                <span class="tag good">Vue.js</span>
+                <span class="tag good">Static HTML</span>
+                <span class="tag good">Node.js APIs</span>
+                <span class="tag good">Python Flask</span>
+                <span class="tag good">Portfolios</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('deployForm');
+        const statusBox = document.getElementById('statusBox');
+        const deployBtn = document.getElementById('deployBtn');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const githubUrl = document.getElementById('github_url').value;
+            
+            // Disable button and show loading
+            deployBtn.disabled = true;
+            deployBtn.textContent = 'Deploying...';
+            
+            // Show loading status
+            showStatus('info', '<div class="spinner"></div><p>Starting deployment...</p>');
+            
+            try {
+                const response = await fetch('/deploy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ github_url: githubUrl })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('success', `
+                        <h3>✅ Deployment Started Successfully!</h3>
+                        <p>Your application is being deployed...</p>
+                        <div class="deployment-url">
+                            <strong>Your URL will be:</strong><br>
+                            <a href="${data.deployment_url}" target="_blank">${data.deployment_url}</a>
+                        </div>
+                        <p style="margin-top: 15px;">⏱️ Estimated time: 3-5 minutes</p>
+                    `);
+                } else {
+                    showStatus('error', `
+                        <h3>❌ Deployment Failed</h3>
+                        <p>${data.error}</p>
+                    `);
+                }
+            } catch (error) {
+                showStatus('error', `
+                    <h3>❌ Error</h3>
+                    <p>Something went wrong. Please try again.</p>
+                `);
+            } finally {
+                // Re-enable button
+                deployBtn.disabled = false;
+                deployBtn.textContent = 'Deploy Now';
+            }
+        });
+        
+        function showStatus(type, message) {
+            statusBox.className = `status-box ${type}`;
+            statusBox.innerHTML = message;
+            statusBox.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
