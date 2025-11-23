@@ -98,23 +98,31 @@ def check_status(deployment_id):
 def trigger_pipeline(github_url, subdomain):
     """
     Trigger AWS CodePipeline with the GitHub URL
-    (We'll implement this after AWS setup)
     """
     try:
-        response = codepipeline.start_pipeline_execution(
-            name=PIPELINE_NAME,
-            variables=[
-                {
-                    'name': 'GITHUB_URL',
-                    'value': github_url
-                },
-                {
-                    'name': 'SUBDOMAIN',
-                    'value': subdomain
-                }
-            ]
-        )
-        return response
+        # First, download the GitHub repo and upload to S3
+        import zipfile
+        import tempfile
+        import shutil
+        
+        # Clone the repository
+        temp_dir = tempfile.mkdtemp()
+        os.system(f"git clone {github_url} {temp_dir}/repo")
+        
+        # Create zip file
+        zip_path = f"{temp_dir}/source.zip"
+        shutil.make_archive(zip_path.replace('.zip', ''), 'zip', f"{temp_dir}/repo")
+        
+        # Upload to S3
+        s3 = boto3.client('s3', region_name=AWS_REGION)
+        bucket_name = 'your-bucket-name'  # Replace with YOUR bucket
+        
+        with open(zip_path, 'rb') as f:
+            s3.upload_fileobj(f, bucket_name, 'source.zip')
+        
+        # Pipeline will auto-trigger from S3 upload
+        
+        return {'success': True, 'message': 'Pipeline triggered'}
     except Exception as e:
         raise Exception(f"Failed to trigger pipeline: {str(e)}")
 

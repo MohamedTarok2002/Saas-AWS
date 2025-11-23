@@ -1,43 +1,99 @@
 version: 0.2
 
+# This file tells AWS CodeBuild HOW to build the user's project
+# Think of it as a recipe for cooking different types of apps
+
 phases:
+  # PHASE 1: Install necessary tools
   install:
     runtime-versions:
-      nodejs: 18
-      python: 3.11
+      nodejs: 18      # For React, Vue, Angular apps
+      python: 3.11    # For Flask, Django apps
+      java: corretto17 # For Java Spring apps
     commands:
-      - echo "Installing dependencies"
+      - echo "============================================"
+      - echo "Starting build process..."
+      - echo "============================================"
       
+  # PHASE 2: Before building - detect what kind of project this is
   pre_build:
     commands:
-      - echo "Detecting project type"
+      - echo "Detecting project type..."
       - |
+        # Check if it's a Node.js project
         if [ -f "package.json" ]; then
-          echo "Node.js project detected"
+          echo "✅ Node.js project detected (React, Vue, or Node.js app)"
+          echo "Installing npm dependencies..."
           npm install
+          
+        # Check if it's a Python project
         elif [ -f "requirements.txt" ]; then
-          echo "Python project detected"
+          echo "✅ Python project detected (Flask, Django, or FastAPI)"
+          echo "Installing pip dependencies..."
           pip install -r requirements.txt
+          
+        # Check if it's a Java project
         elif [ -f "pom.xml" ]; then
-          echo "Java project detected"
+          echo "✅ Java Maven project detected"
+          echo "Installing Maven dependencies..."
           mvn clean install
+          
+        # Check if it's a Java Gradle project
+        elif [ -f "build.gradle" ]; then
+          echo "✅ Java Gradle project detected"
+          echo "Building with Gradle..."
+          gradle build
+          
+        # If none of the above, it's a static website
         else
-          echo "Static website detected"
+          echo "✅ Static HTML website detected"
+          echo "No dependencies to install"
         fi
       
+  # PHASE 3: Actually build the project
   build:
     commands:
-      - echo "Building project"
+      - echo "Building project..."
       - |
+        # For Node.js projects, run the build script
         if [ -f "package.json" ]; then
-          npm run build || echo "No build script"
+          # Check if there's a build script in package.json
+          if grep -q '"build"' package.json; then
+            echo "Running npm build..."
+            npm run build
+          else
+            echo "No build script found, skipping build step"
+          fi
         fi
+        
+        # Python projects usually don't need a build step
+        # Static sites don't need a build step either
       
+  # PHASE 4: After building - prepare for deployment
   post_build:
     commands:
-      - echo "Build completed"
+      - echo "============================================"
+      - echo "Build completed successfully! 🎉"
+      - echo "============================================"
+      - |
+        # For React/Vue apps, the build output is usually in 'build' or 'dist'
+        if [ -d "build" ]; then
+          echo "Found build directory"
+        elif [ -d "dist" ]; then
+          echo "Found dist directory"
+        else
+          echo "Using root directory for deployment"
+        fi
 
+# ARTIFACTS: What files to package and send to CodeDeploy
 artifacts:
   files:
-    - '**/*'
-  name: output.zip
+    - '**/*'  # Include ALL files and subdirectories
+  name: output.zip  # Package everything as output.zip
+  
+# CACHE: Speed up future builds by caching dependencies
+cache:
+  paths:
+    - 'node_modules/**/*'  # Cache npm packages
+    - '.npm/**/*'          # Cache npm cache
+    - 'venv/**/*'          # Cache Python virtual environment
