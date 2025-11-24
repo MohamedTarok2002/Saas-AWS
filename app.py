@@ -10,7 +10,7 @@ app = Flask(__name__)
 # AWS Configuration (we'll set these up later)
 AWS_REGION = 'us-east-1'  # Change to your preferred region
 PIPELINE_NAME = 'UserDeploymentPipeline'
-
+EC2_PUBLIC_IP ="52.90.98.13"
 # Initialize AWS clients (we'll configure credentials later)
 try:
     codepipeline = boto3.client('codepipeline', region_name=AWS_REGION)
@@ -73,7 +73,7 @@ def deploy():
             'success': True,
             'message': 'Deployment started!',
             'subdomain': subdomain,
-            'deployment_url': f"http://{subdomain}.yourservice.com",
+            'deployment_url': f"http://{EC2_PUBLIC_IP}",
             'status': 'In Progress'
         })
     
