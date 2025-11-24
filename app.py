@@ -115,7 +115,7 @@ def trigger_pipeline(github_url, subdomain):
         
         # Upload to S3
         s3 = boto3.client('s3', region_name=AWS_REGION)
-        bucket_name = 'your-bucket-name'  # Replace with YOUR bucket
+        bucket_name = 'devops-deploy-artifacts-fr-saas'  # Replace with YOUR bucket
         
         with open(zip_path, 'rb') as f:
             s3.upload_fileobj(f, bucket_name, 'source.zip')
