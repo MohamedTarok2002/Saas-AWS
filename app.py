@@ -4,6 +4,15 @@ import re
 import os
 from datetime import datetime
 
+
+# AWS Credentials + Region – loaded safely from environment variables
+AWS_ACCESS_KEY_ID     = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_SESSION_TOKEN     = os.getenv("AWS_SESSION_TOKEN")      # only needed for temporary creds
+AWS_REGION            = os.getenv("AWS_REGION", "us-east-1")  # default region if not set
+# Now boto3 will automatically pick up your temp credentials!
+AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -45,42 +54,32 @@ def deploy():
     Handle deployment request
     """
     try:
-        # Get GitHub URL from the form
         data = request.get_json()
         github_url = data.get('github_url', '').strip()
         
-        # Validate the URL
         if not github_url:
-            return jsonify({
-                'success': False,
-                'error': 'Please provide a GitHub URL'
-            }), 400
+            return jsonify({'success': False, 'error': 'Please provide a GitHub URL'}), 400
         
         if not validate_github_url(github_url):
-            return jsonify({
-                'success': False,
-                'error': 'Invalid GitHub URL format. Use: https://github.com/username/repository'
-            }), 400
+            return jsonify({'success': False, 'error': 'Invalid GitHub URL format'}), 400
         
-        # Generate unique subdomain
         subdomain = generate_subdomain()
         
-        # TODO: Trigger AWS CodePipeline (we'll implement this after AWS setup)
-        # pipeline_response = trigger_pipeline(github_url, subdomain)
+        # This is the line that triggers everything
+        trigger_pipeline(github_url, subdomain)
         
-        # For now, return success with placeholder
         return jsonify({
             'success': True,
-            'message': 'Deployment started!',
+            'message': 'Deployment started successfully!',
             'subdomain': subdomain,
             'deployment_url': f"http://{EC2_PUBLIC_IP}",
             'status': 'In Progress'
         })
-    
+        
     except Exception as e:
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': f"Deployment failed: {str(e)}"
         }), 500
 
 @app.route('/status/<deployment_id>')
@@ -96,36 +95,69 @@ def check_status(deployment_id):
     })
 
 def trigger_pipeline(github_url, subdomain):
-    """
-    Trigger AWS CodePipeline with the GitHub URL
-    """
-    try:
-        # First, download the GitHub repo and upload to S3
-        import zipfile
-        import tempfile
-        import shutil
-        
-        # Clone the repository
-        temp_dir = tempfile.mkdtemp()
-        os.system(f"git clone {github_url} {temp_dir}/repo")
-        
-        # Create zip file
-        zip_path = f"{temp_dir}/source.zip"
-        shutil.make_archive(zip_path.replace('.zip', ''), 'zip', f"{temp_dir}/repo")
-        
-        # Upload to S3
-        s3 = boto3.client('s3', region_name=AWS_REGION)
-        bucket_name = 'devops-deploy-artifacts-fr-saas'  # Replace with YOUR bucket
-        
-        with open(zip_path, 'rb') as f:
-            s3.upload_fileobj(f, bucket_name, 'source.zip')
-        
-        # Pipeline will auto-trigger from S3 upload
-        
-        return {'success': True, 'message': 'Pipeline triggered'}
-    except Exception as e:
-        raise Exception(f"Failed to trigger pipeline: {str(e)}")
+    import subprocess
+    import tempfile
+    import shutil
+    import os
 
+    try:
+        # Use REAL temp folder that Windows can't mess with
+        temp_dir = tempfile.mkdtemp(prefix="deploy_")
+        repo_path = os.path.join(temp_dir, "repo")
+        zip_path = os.path.join(temp_dir, "source.zip")
+
+        print("Cloning repo...")
+        result = subprocess.run(
+            ['git', 'clone', '--depth', '1', github_url, repo_path],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise Exception(f"Git clone failed: {result.stderr}")
+
+        # Inject buildspec.yml
+        with open(os.path.join(repo_path, "buildspec.yml"), "w") as f:
+            f.write("""version: 0.2
+phases:
+  build:
+    commands:
+      - echo "Static site - nothing to build"
+artifacts:
+  files:
+    - '**/*'
+  base-directory: repo
+""")
+
+        # Inject appspec.yml
+        with open(os.path.join(repo_path, "appspec.yml"), "w") as f:
+            f.write("""version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /usr/share/nginx/html/
+permissions:
+  - object: /
+    pattern: "**"
+    owner: nginx
+    group: nginx
+""")
+
+        # Zip from inside the temp folder
+        shutil.make_archive(zip_path.replace(".zip", ""), 'zip', temp_dir, "repo")
+
+        # Upload
+        session = boto3.Session()
+        s3 = session.client('s3')
+        with open(zip_path, "rb") as f:
+            s3.upload_fileobj(f, 'devops-deploy-artifacts-fr-saas', "source.zip")
+
+        print("SUCCESS → source.zip uploaded! Pipeline running...")
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return {'success': True}
+
+    except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True) if 'temp_dir' in locals() else None
+        raise Exception(f"Failed: {str(e)}")
+    
 if __name__ == '__main__':
     # Run the Flask app in development mode
     app.run(debug=True, host='0.0.0.0', port=5000)
