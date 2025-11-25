@@ -1,0 +1,44 @@
+version: 0.0
+os: linux
+
+# Where to copy files on EC2
+files:
+  - source: /
+    destination: /var/www/html/deployment
+
+# Set proper permissions
+permissions:
+  - object: /var/www/html/deployment
+    pattern: "**"
+    owner: ec2-user
+    group: ec2-user
+    mode: 755
+    type:
+      - directory
+      - file
+
+# Deployment lifecycle hooks
+hooks:
+  # Before installing new version
+  BeforeInstall:
+    - location: scripts/before_install.sh
+      timeout: 300
+      runas: root
+  
+  # After files are copied
+  AfterInstall:
+    - location: scripts/after_install.sh
+      timeout: 600
+      runas: root
+  
+  # Start the application
+  ApplicationStart:
+    - location: scripts/start_application.sh
+      timeout: 300
+      runas: root
+  
+  # Validate deployment succeeded
+  ValidateService:
+    - location: scripts/validate_service.sh
+      timeout: 300
+      runas: root
