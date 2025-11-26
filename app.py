@@ -93,7 +93,7 @@ def deploy():
             'success': True,
             'message': 'Deployment started successfully!',
             'subdomain': subdomain,
-            'url': f"http://{EC2_PUBLIC_IP}",
+            'deployment_url': f"http://{EC2_PUBLIC_IP}",
             'execution_id': result['execution_id']
         })
 
