@@ -1,99 +1,107 @@
 version: 0.2
 
-# This file tells AWS CodeBuild HOW to build the user's project
-# Think of it as a recipe for cooking different types of apps
-
 phases:
-  # PHASE 1: Install necessary tools
   install:
     runtime-versions:
-      nodejs: 18      # For React, Vue, Angular apps
-      python: 3.11    # For Flask, Django apps
-      java: corretto17 # For Java Spring apps
+      nodejs: 18
+      python: 3.11
     commands:
-      - echo "============================================"
-      - echo "Starting build process..."
-      - echo "============================================"
-      
-  # PHASE 2: Before building - detect what kind of project this is
+      - echo "Starting build..."
+
   pre_build:
     commands:
       - echo "Detecting project type..."
       - |
-        # Check if it's a Node.js project
         if [ -f "package.json" ]; then
-          echo "✅ Node.js project detected (React, Vue, or Node.js app)"
-          echo "Installing npm dependencies..."
+          echo "Node.js project detected"
           npm install
-          
-        # Check if it's a Python project
         elif [ -f "requirements.txt" ]; then
-          echo "✅ Python project detected (Flask, Django, or FastAPI)"
-          echo "Installing pip dependencies..."
+          echo "Python project detected"
           pip install -r requirements.txt
-          
-        # Check if it's a Java project
-        elif [ -f "pom.xml" ]; then
-          echo "✅ Java Maven project detected"
-          echo "Installing Maven dependencies..."
-          mvn clean install
-          
-        # Check if it's a Java Gradle project
-        elif [ -f "build.gradle" ]; then
-          echo "✅ Java Gradle project detected"
-          echo "Building with Gradle..."
-          gradle build
-          
-        # If none of the above, it's a static website
         else
-          echo "✅ Static HTML website detected"
-          echo "No dependencies to install"
+          echo "Static website detected"
         fi
-      
-  # PHASE 3: Actually build the project
+
   build:
     commands:
       - echo "Building project..."
       - |
-        # For Node.js projects, run the build script
-        if [ -f "package.json" ]; then
-          # Check if there's a build script in package.json
-          if grep -q '"build"' package.json; then
-            echo "Running npm build..."
-            npm run build
-          else
-            echo "No build script found, skipping build step"
-          fi
-        fi
-        
-        # Python projects usually don't need a build step
-        # Static sites don't need a build step either
-      
-  # PHASE 4: After building - prepare for deployment
-  post_build:
-    commands:
-      - echo "============================================"
-      - echo "Build completed successfully! 🎉"
-      - echo "============================================"
-      - |
-        # For React/Vue apps, the build output is usually in 'build' or 'dist'
-        if [ -d "build" ]; then
-          echo "Found build directory"
-        elif [ -d "dist" ]; then
-          echo "Found dist directory"
-        else
-          echo "Using root directory for deployment"
+        if [ -f "package.json" ] && grep -q '"build"' package.json; then
+          npm run build || echo "No build script"
         fi
 
-# ARTIFACTS: What files to package and send to CodeDeploy
+  post_build:
+    commands:
+      - echo "Adding CodeDeploy files..."
+      - |
+        cat > appspec.yml << 'APPSPEC'
+        version: 0.0
+        os: linux
+        files:
+          - source: /
+            destination: /var/www/html
+        hooks:
+          BeforeInstall:
+            - location: scripts/before_install.sh
+              timeout: 300
+              runas: root
+          AfterInstall:
+            - location: scripts/after_install.sh
+              timeout: 300
+              runas: root
+          ApplicationStart:
+            - location: scripts/start_application.sh
+              timeout: 300
+              runas: root
+          ValidateService:
+            - location: scripts/validate_service.sh
+              timeout: 300
+              runas: root
+        APPSPEC
+      - mkdir -p scripts
+      - |
+        cat > scripts/before_install.sh << 'SCRIPT'
+        #!/bin/bash
+        echo "=== before_install.sh ==="
+        sudo yum install -y httpd
+        sudo systemctl stop httpd || true
+        sudo rm -rf /var/www/html/*
+        echo "=== done ==="
+        SCRIPT
+      - |
+        cat > scripts/after_install.sh << 'SCRIPT'
+        #!/bin/bash
+        echo "=== after_install.sh ==="
+        cd /var/www/html
+        if [ -d "build" ]; then cp -r build/* .; fi
+        if [ -d "dist" ]; then cp -r dist/* .; fi
+        sudo chown -R apache:apache /var/www/html
+        sudo chmod -R 755 /var/www/html
+        echo "=== done ==="
+        SCRIPT
+      - |
+        cat > scripts/start_application.sh << 'SCRIPT'
+        #!/bin/bash
+        echo "=== start_application.sh ==="
+        sudo systemctl start httpd
+        sudo systemctl enable httpd
+        echo "=== done ==="
+        SCRIPT
+      - |
+        cat > scripts/validate_service.sh << 'SCRIPT'
+        #!/bin/bash
+        echo "=== validate_service.sh ==="
+        if sudo systemctl is-active --quiet httpd; then
+            echo "Apache is running!"
+            exit 0
+        else
+            echo "Apache failed"
+            exit 1
+        fi
+        SCRIPT
+      - chmod +x scripts/*.sh
+      - echo "Build completed!"
+
 artifacts:
   files:
-    - '**/*'  # Include ALL files and subdirectories
-  name: output.zip  # Package everything as output.zip
-  
-# CACHE: Speed up future builds by caching dependencies
-cache:
-  paths:
-    - 'node_modules/**/*'  # Cache npm packages
-    - '.npm/**/*'          # Cache npm cache
-    - 'venv/**/*'          # Cache Python virtual environment
+    - '**/*'
