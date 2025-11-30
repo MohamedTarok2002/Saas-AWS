@@ -10,12 +10,11 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ========================================
-# CONFIGURATION — FINAL CORRECT VERSION
+# CONFIGURATION
 # ========================================
 PIPELINE_NAME = 'UserDeploymentPipeline'
 EC2_PUBLIC_IP = "52.90.98.13"
-S3_BUCKET_NAME = "devops-deploy-artifacts-fr-saas"   # ← NO SPACE AT THE END!!!
-
+S3_BUCKET_NAME = "devops-deploy-artifacts-fr-saas"
 AWS_REGION = 'us-east-1'
 
 # AWS clients
@@ -46,7 +45,6 @@ def trigger_pipeline(github_url, subdomain):
         )
         print("Git clone successful!")
 
-        # FIXED: use correct variable name
         zip_file_path = shutil.make_archive(zip_base_path, 'zip', repo_path)
         print(f"Zip created: {zip_file_path}")
 
@@ -68,6 +66,58 @@ def trigger_pipeline(github_url, subdomain):
     finally:
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def get_pipeline_status(execution_id):
+    """Get the current status of the pipeline execution"""
+    try:
+        # Get pipeline state
+        response = codepipeline.get_pipeline_execution(
+            pipelineName=PIPELINE_NAME,
+            pipelineExecutionId=execution_id
+        )
+        
+        overall_status = response['pipelineExecution']['status']
+        
+        # Get detailed stage states
+        state_response = codepipeline.get_pipeline_state(name=PIPELINE_NAME)
+        
+        stages = []
+        for stage in state_response['stageStates']:
+            stage_name = stage['stageName']
+            
+            # Get latest action state
+            if 'latestExecution' in stage:
+                status = stage['latestExecution']['status']
+            else:
+                status = 'Pending'
+            
+            # Get action details if available
+            action_status = 'Pending'
+            if 'actionStates' in stage and len(stage['actionStates']) > 0:
+                action = stage['actionStates'][0]
+                if 'latestExecution' in action:
+                    action_status = action['latestExecution']['status']
+            
+            stages.append({
+                'name': stage_name,
+                'status': status,
+                'action_status': action_status
+            })
+        
+        return {
+            'success': True,
+            'overall_status': overall_status,
+            'stages': stages,
+            'deployment_url': f"http://{EC2_PUBLIC_IP}" if overall_status == 'Succeeded' else None
+        }
+        
+    except Exception as e:
+        print(f"Error getting pipeline status: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
 
 
 @app.route('/')
@@ -93,7 +143,6 @@ def deploy():
             'success': True,
             'message': 'Deployment started successfully!',
             'subdomain': subdomain,
-            'deployment_url': f"http://{EC2_PUBLIC_IP}",
             'execution_id': result['execution_id']
         })
 
@@ -101,11 +150,18 @@ def deploy():
         return jsonify({'success': False, 'error': f"Failed: {str(e)}"}), 500
 
 
+@app.route('/status/<execution_id>', methods=['GET'])
+def check_status(execution_id):
+    """Endpoint to check pipeline status"""
+    result = get_pipeline_status(execution_id)
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     print("=" * 60)
-    print("DEPLOYMENT PORTAL IS NOW LIVE AND UNBREAKABLE")
+    print("DEPLOYMENT PORTAL IS NOW LIVE")
     print(f"Bucket → {S3_BUCKET_NAME}")
     print(f"Pipeline → {PIPELINE_NAME}")
-    print(f"Go to: http://{EC2_PUBLIC_IP}:5000")
+    print(f"Go to: http://localhost:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=False)
