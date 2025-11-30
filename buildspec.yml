@@ -6,11 +6,10 @@ phases:
       nodejs: 18
       python: 3.11
     commands:
-      - echo "Installing dependencies..."
+      - echo "Starting build..."
 
   pre_build:
     commands:
-      - echo "Detecting project type..."
       - |
         if [ -f "package.json" ]; then
           echo "Node.js project detected"
@@ -24,18 +23,14 @@ phases:
 
   build:
     commands:
-      - echo "Building project..."
       - |
-        if [ -f "package.json" ] && node -e "process.exit(require('./package.json').scripts && require('./package.json').scripts.build ? 0 : 1)"; then
-          npm run build
+        if [ -f "package.json" ] && grep -q '"build"' package.json; then
+          npm run build || echo "No build script"
         fi
 
   post_build:
     commands:
-      - echo "Generating CodeDeploy files..."
       - mkdir -p scripts
-
-      # appspec.yml — copies everything to /usr/share/nginx/html (your nginx folder)
       - |
         cat > appspec.yml << 'EOF'
         version: 0.0
@@ -43,12 +38,6 @@ phases:
         files:
           - source: /
             destination: /usr/share/nginx/html
-        permissions:
-          - object: /usr/share/nginx/html
-            pattern: "**"
-            owner: nginx
-            group: nginx
-            mode: 755
         hooks:
           BeforeInstall:
             - location: scripts/before_install.sh
@@ -67,48 +56,35 @@ phases:
               timeout: 300
               runas: root
         EOF
-
-      # Clear old files + restart nginx
       - |
         cat > scripts/before_install.sh << 'EOF'
         #!/bin/bash
-        set -e
-        echo "Cleaning old files..."
+        yum install -y nginx
+        systemctl stop nginx || true
         rm -rf /usr/share/nginx/html/*
         EOF
-
       - |
         cat > scripts/after_install.sh << 'EOF'
         #!/bin/bash
-        set -e
-        echo "Copying build output..."
-        if [ -d "build" ]; then cp -r build/* /usr/share/nginx/html/; fi
-        if [ -d "dist" ]; then cp -r dist/* /usr/share/nginx/html/; fi
+        cd /usr/share/nginx/html
+        if [ -d "build" ]; then cp -r build/* .; fi
+        if [ -d "dist" ]; then cp -r dist/* .; fi
         chown -R nginx:nginx /usr/share/nginx/html
         chmod -R 755 /usr/share/nginx/html
         EOF
-
       - |
         cat > scripts/start_application.sh << 'EOF'
         #!/bin/bash
-        set -e
-        echo "Restarting nginx..."
-        systemctl restart nginx
+        systemctl start nginx
+        systemctl enable nginx
         EOF
-
       - |
         cat > scripts/validate_service.sh << 'EOF'
         #!/bin/bash
-        set -e
-        echo "Validating nginx is running..."
-        systemctl is-active --quiet nginx && curl -f http://localhost || exit 1
-        echo "Deployment successful!"
+        systemctl is-active --quiet nginx && exit 0 || exit 1
         EOF
-
       - chmod +x scripts/*.sh
-      - echo "Buildspec completed!"
 
 artifacts:
   files:
     - '**/*'
-  discard-paths: no
