@@ -4,11 +4,11 @@ os: linux
 # Where to copy files on EC2
 files:
   - source: /
-    destination: /var/www/html/deployment
+    destination: /usr/share/nginx/html
 
 # Set proper permissions
 permissions:
-  - object: /var/www/html/deployment
+  - object: /usr/share/nginx/html
     pattern: "**"
     owner: ec2-user
     group: ec2-user
