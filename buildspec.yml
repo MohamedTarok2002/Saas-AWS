@@ -6,7 +6,7 @@ phases:
       nodejs: 18
       python: 3.11
     commands:
-      - echo "Starting build..."
+      - echo "Installing dependencies..."
 
   pre_build:
     commands:
@@ -26,20 +26,29 @@ phases:
     commands:
       - echo "Building project..."
       - |
-        if [ -f "package.json" ] && grep -q '"build"' package.json; then
-          npm run build || echo "No build script"
+        if [ -f "package.json" ] && node -e "process.exit(require('./package.json').scripts && require('./package.json').scripts.build ? 0 : 1)"; then
+          npm run build
         fi
 
   post_build:
     commands:
-      - echo "Adding CodeDeploy files..."
+      - echo "Generating CodeDeploy files..."
+      - mkdir -p scripts
+
+      # appspec.yml — copies everything to /usr/share/nginx/html (your nginx folder)
       - |
-        cat > appspec.yml << 'APPSPEC'
+        cat > appspec.yml << 'EOF'
         version: 0.0
         os: linux
         files:
           - source: /
-            destination: /var/www/html
+            destination: /usr/share/nginx/html
+        permissions:
+          - object: /usr/share/nginx/html
+            pattern: "**"
+            owner: nginx
+            group: nginx
+            mode: 755
         hooks:
           BeforeInstall:
             - location: scripts/before_install.sh
@@ -57,51 +66,49 @@ phases:
             - location: scripts/validate_service.sh
               timeout: 300
               runas: root
-        APPSPEC
-      - mkdir -p scripts
+        EOF
+
+      # Clear old files + restart nginx
       - |
-        cat > scripts/before_install.sh << 'SCRIPT'
+        cat > scripts/before_install.sh << 'EOF'
         #!/bin/bash
-        echo "=== before_install.sh ==="
-        sudo yum install -y httpd
-        sudo systemctl stop httpd || true
-        sudo rm -rf /var/www/html/*
-        echo "=== done ==="
-        SCRIPT
+        set -e
+        echo "Cleaning old files..."
+        rm -rf /usr/share/nginx/html/*
+        EOF
+
       - |
-        cat > scripts/after_install.sh << 'SCRIPT'
+        cat > scripts/after_install.sh << 'EOF'
         #!/bin/bash
-        echo "=== after_install.sh ==="
-        cd /var/www/html
-        if [ -d "build" ]; then cp -r build/* .; fi
-        if [ -d "dist" ]; then cp -r dist/* .; fi
-        sudo chown -R apache:apache /var/www/html
-        sudo chmod -R 755 /var/www/html
-        echo "=== done ==="
-        SCRIPT
+        set -e
+        echo "Copying build output..."
+        if [ -d "build" ]; then cp -r build/* /usr/share/nginx/html/; fi
+        if [ -d "dist" ]; then cp -r dist/* /usr/share/nginx/html/; fi
+        chown -R nginx:nginx /usr/share/nginx/html
+        chmod -R 755 /usr/share/nginx/html
+        EOF
+
       - |
-        cat > scripts/start_application.sh << 'SCRIPT'
+        cat > scripts/start_application.sh << 'EOF'
         #!/bin/bash
-        echo "=== start_application.sh ==="
-        sudo systemctl start httpd
-        sudo systemctl enable httpd
-        echo "=== done ==="
-        SCRIPT
+        set -e
+        echo "Restarting nginx..."
+        systemctl restart nginx
+        EOF
+
       - |
-        cat > scripts/validate_service.sh << 'SCRIPT'
+        cat > scripts/validate_service.sh << 'EOF'
         #!/bin/bash
-        echo "=== validate_service.sh ==="
-        if sudo systemctl is-active --quiet httpd; then
-            echo "Apache is running!"
-            exit 0
-        else
-            echo "Apache failed"
-            exit 1
-        fi
-        SCRIPT
+        set -e
+        echo "Validating nginx is running..."
+        systemctl is-active --quiet nginx && curl -f http://localhost || exit 1
+        echo "Deployment successful!"
+        EOF
+
       - chmod +x scripts/*.sh
-      - echo "Build completed!"
+      - echo "Buildspec completed!"
 
 artifacts:
   files:
     - '**/*'
+  discard-paths: no
