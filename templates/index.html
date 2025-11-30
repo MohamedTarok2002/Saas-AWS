@@ -5,187 +5,263 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevOps Deploy - Instant GitHub Deployment</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
         }
-        
         .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5);
             padding: 50px;
-            max-width: 600px;
+            max-width: 700px;
             width: 100%;
         }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 2.5em;
+        h1 { 
+            color: #1a1a2e; 
+            margin-bottom: 10px; 
+            font-size: 2.5em; 
             text-align: center;
-        }
-        
-        .subtitle {
-            color: #666;
-            text-align: center;
-            margin-bottom: 40px;
-            font-size: 1.1em;
-        }
-        
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 600;
-        }
-        
-        input[type="text"] {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #ddd;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-        
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .deploy-btn {
-            width: 100%;
-            padding: 18px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        
-        .deploy-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        .subtitle { color: #666; text-align: center; margin-bottom: 40px; font-size: 1.1em; }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; margin-bottom: 8px; color: #333; font-weight: 600; }
+        input[type="text"] {
+            width: 100%; padding: 18px; border: 2px solid #e0e0e0;
+            border-radius: 12px; font-size: 16px; transition: all 0.3s;
+            background: #f8f9fa;
         }
-        
-        .deploy-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
+        input[type="text"]:focus { 
+            outline: none; 
+            border-color: #667eea; 
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
         }
+        .deploy-btn {
+            width: 100%; padding: 18px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; border: none; border-radius: 12px; font-size: 18px;
+            font-weight: 600; cursor: pointer; transition: all 0.3s;
+        }
+        .deploy-btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4); 
+        }
+        .deploy-btn:disabled { 
+            background: linear-gradient(135deg, #a0a0a0 0%, #808080 100%);
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none;
+        }
+        .example { font-size: 0.9em; color: #888; margin-top: 8px; }
         
-        .status-box {
+        /* Pipeline Progress Section */
+        .pipeline-section {
             margin-top: 30px;
-            padding: 20px;
-            border-radius: 10px;
             display: none;
         }
-        
-        .status-box.success {
-            background: #d4edda;
-            border: 2px solid #28a745;
-            color: #155724;
+        .pipeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .pipeline-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+        }
+        .time-remaining {
+            font-size: 0.95em;
+            color: #667eea;
+            font-weight: 500;
         }
         
-        .status-box.error {
+        /* Pipeline Stages */
+        .pipeline-stages {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            position: relative;
+        }
+        .pipeline-stages::before {
+            content: '';
+            position: absolute;
+            top: 25px;
+            left: 60px;
+            right: 60px;
+            height: 4px;
+            background: #e0e0e0;
+            z-index: 1;
+        }
+        .stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+            flex: 1;
+        }
+        .stage-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            margin-bottom: 10px;
+            transition: all 0.5s;
+            border: 3px solid white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stage-icon.pending { background: #e0e0e0; color: #999; }
+        .stage-icon.running { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+        .stage-icon.succeeded { background: #28a745; color: white; }
+        .stage-icon.failed { background: #dc3545; color: white; }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+            50% { transform: scale(1.1); box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6); }
+        }
+        
+        .stage-name {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: #555;
+        }
+        .stage-status {
+            font-size: 0.75em;
+            color: #888;
+            margin-top: 3px;
+        }
+        
+        /* Logs Section */
+        .logs-section {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .logs-title {
+            color: #667eea;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .log-entry {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            color: #a0a0a0;
+            padding: 5px 0;
+            border-bottom: 1px solid #2a2a4e;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry.success { color: #28a745; }
+        .log-entry.error { color: #dc3545; }
+        .log-entry.info { color: #17a2b8; }
+        .log-entry .timestamp { color: #666; margin-right: 10px; }
+        
+        /* Success Section */
+        .success-section {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-radius: 16px;
+            text-align: center;
+            border: 2px solid #28a745;
+        }
+        .success-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+        .success-title {
+            font-size: 1.5em;
+            color: #155724;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .success-message {
+            color: #155724;
+            margin-bottom: 20px;
+        }
+        .deployment-url {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .deployment-url a {
+            color: #667eea;
+            font-size: 1.2em;
+            font-weight: 600;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .deployment-url a:hover { text-decoration: underline; }
+        .visit-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .visit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4);
+        }
+        
+        /* Error Section */
+        .error-section {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
             background: #f8d7da;
+            border-radius: 12px;
             border: 2px solid #dc3545;
+        }
+        .error-title {
+            color: #721c24;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .error-message {
             color: #721c24;
         }
         
-        .status-box.info {
-            background: #d1ecf1;
-            border: 2px solid #17a2b8;
-            color: #0c5460;
-        }
-        
-        .deployment-url {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            word-break: break-all;
-        }
-        
-        .deployment-url a {
+        /* Supported Projects */
+        .supported-list { margin-top: 40px; padding-top: 30px; border-top: 1px solid #eee; }
+        .supported-list h3 { color: #333; margin-bottom: 15px; font-size: 1.1em; }
+        .tags { display: flex; flex-wrap: wrap; gap: 10px; }
+        .tag { 
+            padding: 8px 16px; 
+            background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+            border-radius: 20px; 
+            font-size: 0.9em; 
             color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .deployment-url a:hover {
-            text-decoration: underline;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .example {
-            font-size: 0.9em;
-            color: #999;
-            margin-top: 8px;
-        }
-        
-        .supported-list {
-            margin-top: 30px;
-            padding-top: 30px;
-            border-top: 1px solid #eee;
-        }
-        
-        .supported-list h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-        }
-        
-        .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .tag {
-            padding: 8px 15px;
-            background: #e9ecef;
-            border-radius: 20px;
-            font-size: 0.9em;
-            color: #495057;
-        }
-        
-        .tag.good {
-            background: #d4edda;
-            color: #155724;
+            font-weight: 500;
         }
     </style>
 </head>
@@ -208,86 +284,262 @@
             </div>
             
             <button type="submit" class="deploy-btn" id="deployBtn">
-                Deploy Now
+                🚀 Deploy Now
             </button>
         </form>
         
-        <div id="statusBox" class="status-box"></div>
+        <!-- Pipeline Progress Section -->
+        <div class="pipeline-section" id="pipelineSection">
+            <div class="pipeline-header">
+                <span class="pipeline-title">📦 Deployment Progress</span>
+                <span class="time-remaining" id="timeRemaining">Estimated: ~3 minutes</span>
+            </div>
+            
+            <div class="pipeline-stages">
+                <div class="stage">
+                    <div class="stage-icon pending" id="sourceIcon">📥</div>
+                    <span class="stage-name">Source</span>
+                    <span class="stage-status" id="sourceStatus">Waiting</span>
+                </div>
+                <div class="stage">
+                    <div class="stage-icon pending" id="buildIcon">🔨</div>
+                    <span class="stage-name">Build</span>
+                    <span class="stage-status" id="buildStatus">Waiting</span>
+                </div>
+                <div class="stage">
+                    <div class="stage-icon pending" id="deployIcon">🚀</div>
+                    <span class="stage-name">Deploy</span>
+                    <span class="stage-status" id="deployStatus">Waiting</span>
+                </div>
+            </div>
+            
+            <div class="logs-section">
+                <div class="logs-title">📋 Live Logs</div>
+                <div id="logsContainer">
+                    <div class="log-entry info">
+                        <span class="timestamp">[--:--:--]</span>
+                        Waiting for deployment to start...
+                    </div>
+                </div>
+            </div>
+        </div>
         
-        <div class="supported-list">
+        <!-- Success Section -->
+        <div class="success-section" id="successSection">
+            <div class="success-icon">🎉</div>
+            <div class="success-title">Deployment Successful!</div>
+            <p class="success-message">Your application is now live and ready to use.</p>
+            <div class="deployment-url">
+                <strong>Your Live URL:</strong><br>
+                <a href="#" id="deploymentLink" target="_blank"></a>
+            </div>
+            <a href="#" id="visitBtn" class="visit-btn" target="_blank">🌐 Visit Your Site</a>
+        </div>
+        
+        <!-- Error Section -->
+        <div class="error-section" id="errorSection">
+            <div class="error-title">❌ Deployment Failed</div>
+            <p class="error-message" id="errorMessage"></p>
+        </div>
+        
+        <div class="supported-list" id="supportedList">
             <h3>✅ Supported Projects</h3>
             <div class="tags">
-                <span class="tag good">React</span>
-                <span class="tag good">Vue.js</span>
-                <span class="tag good">Static HTML</span>
-                <span class="tag good">Node.js APIs</span>
-                <span class="tag good">Python Flask</span>
-                <span class="tag good">Portfolios</span>
+                <span class="tag">React</span>
+                <span class="tag">Vue.js</span>
+                <span class="tag">Static HTML</span>
+                <span class="tag">Node.js</span>
+                <span class="tag">Python Flask</span>
+                <span class="tag">Portfolios</span>
             </div>
         </div>
     </div>
 
     <script>
         const form = document.getElementById('deployForm');
-        const statusBox = document.getElementById('statusBox');
         const deployBtn = document.getElementById('deployBtn');
+        const pipelineSection = document.getElementById('pipelineSection');
+        const successSection = document.getElementById('successSection');
+        const errorSection = document.getElementById('errorSection');
+        const supportedList = document.getElementById('supportedList');
+        const logsContainer = document.getElementById('logsContainer');
+        
+        let pollInterval = null;
+        let startTime = null;
+        
+        function getTimestamp() {
+            const now = new Date();
+            return now.toTimeString().split(' ')[0];
+        }
+        
+        function addLog(message, type = '') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${getTimestamp()}]</span> ${message}`;
+            logsContainer.appendChild(entry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        function updateStage(stageName, status) {
+            const iconId = stageName.toLowerCase() + 'Icon';
+            const statusId = stageName.toLowerCase() + 'Status';
+            const icon = document.getElementById(iconId);
+            const statusEl = document.getElementById(statusId);
+            
+            if (!icon || !statusEl) return;
+            
+            icon.className = 'stage-icon ' + status.toLowerCase();
+            
+            if (status === 'InProgress') {
+                statusEl.textContent = 'Running...';
+                icon.className = 'stage-icon running';
+            } else if (status === 'Succeeded') {
+                statusEl.textContent = 'Complete';
+                icon.className = 'stage-icon succeeded';
+            } else if (status === 'Failed') {
+                statusEl.textContent = 'Failed';
+                icon.className = 'stage-icon failed';
+            } else {
+                statusEl.textContent = 'Waiting';
+                icon.className = 'stage-icon pending';
+            }
+        }
+        
+        function updateTimeRemaining() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const estimated = 180; // 3 minutes
+            const remaining = Math.max(0, estimated - elapsed);
+            const mins = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            document.getElementById('timeRemaining').textContent = 
+                remaining > 0 ? `Estimated: ~${mins}m ${secs}s remaining` : 'Almost done...';
+        }
+        
+        async function checkPipelineStatus(executionId) {
+            try {
+                const response = await fetch(`/status/${executionId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    addLog('Error checking status: ' + data.error, 'error');
+                    return;
+                }
+                
+                // Update stages
+                data.stages.forEach(stage => {
+                    updateStage(stage.name, stage.status);
+                    
+                    if (stage.status === 'InProgress') {
+                        addLog(`${stage.name} stage is running...`, 'info');
+                    } else if (stage.status === 'Succeeded') {
+                        addLog(`${stage.name} stage completed successfully!`, 'success');
+                    } else if (stage.status === 'Failed') {
+                        addLog(`${stage.name} stage failed!`, 'error');
+                    }
+                });
+                
+                updateTimeRemaining();
+                
+                // Check if completed
+                if (data.overall_status === 'Succeeded') {
+                    clearInterval(pollInterval);
+                    addLog('🎉 Deployment completed successfully!', 'success');
+                    showSuccess(data.deployment_url);
+                } else if (data.overall_status === 'Failed') {
+                    clearInterval(pollInterval);
+                    addLog('❌ Deployment failed!', 'error');
+                    showError('The deployment pipeline failed. Please check the AWS Console for details.');
+                }
+                
+            } catch (err) {
+                console.error('Status check error:', err);
+            }
+        }
+        
+        function showSuccess(url) {
+            pipelineSection.style.display = 'none';
+            successSection.style.display = 'block';
+            document.getElementById('deploymentLink').href = url;
+            document.getElementById('deploymentLink').textContent = url;
+            document.getElementById('visitBtn').href = url;
+            supportedList.style.display = 'none';
+            deployBtn.disabled = false;
+            deployBtn.textContent = '🚀 Deploy Another';
+        }
+        
+        function showError(message) {
+            pipelineSection.style.display = 'none';
+            errorSection.style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+            deployBtn.disabled = false;
+            deployBtn.textContent = '🚀 Try Again';
+        }
+        
+        function resetUI() {
+            pipelineSection.style.display = 'none';
+            successSection.style.display = 'none';
+            errorSection.style.display = 'none';
+            supportedList.style.display = 'block';
+            logsContainer.innerHTML = '';
+            
+            // Reset stage icons
+            ['source', 'build', 'deploy'].forEach(stage => {
+                document.getElementById(stage + 'Icon').className = 'stage-icon pending';
+                document.getElementById(stage + 'Status').textContent = 'Waiting';
+            });
+        }
         
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const githubUrl = document.getElementById('github_url').value;
+            const githubUrl = document.getElementById('github_url').value.trim();
             
-            // Disable button and show loading
+            resetUI();
             deployBtn.disabled = true;
-            deployBtn.textContent = 'Deploying...';
+            deployBtn.textContent = '⏳ Starting...';
+            pipelineSection.style.display = 'block';
+            supportedList.style.display = 'none';
+            startTime = Date.now();
             
-            // Show loading status
-            showStatus('info', '<div class="spinner"></div><p>Starting deployment...</p>');
+            addLog('Initializing deployment...', 'info');
+            addLog(`Repository: ${githubUrl}`, 'info');
             
             try {
                 const response = await fetch('/deploy', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ github_url: githubUrl })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    showStatus('success', `
-                        <h3>✅ Deployment Started Successfully!</h3>
-                        <p>Your application is being deployed...</p>
-                        <div class="deployment-url">
-                            <strong>Your URL will be:</strong><br>
-                            <a href="${data.deployment_url}" target="_blank">${data.deployment_url}</a>
-                        </div>
-                        <p style="margin-top: 15px;">⏱️ Estimated time: 3-5 minutes</p>
-                    `);
+                    addLog('✅ Deployment triggered successfully!', 'success');
+                    addLog(`Execution ID: ${data.execution_id}`, 'info');
+                    addLog('Waiting for pipeline to start...', 'info');
+                    
+                    deployBtn.textContent = '⏳ Deploying...';
+                    
+                    // Start polling for status
+                    pollInterval = setInterval(() => {
+                        checkPipelineStatus(data.execution_id);
+                    }, 5000); // Check every 5 seconds
+                    
+                    // Also check immediately
+                    setTimeout(() => checkPipelineStatus(data.execution_id), 2000);
+                    
                 } else {
-                    showStatus('error', `
-                        <h3>❌ Deployment Failed</h3>
-                        <p>${data.error}</p>
-                    `);
+                    addLog('❌ ' + (data.error || 'Unknown error'), 'error');
+                    showError(data.error || 'Failed to start deployment');
                 }
-            } catch (error) {
-                showStatus('error', `
-                    <h3>❌ Error</h3>
-                    <p>Something went wrong. Please try again.</p>
-                `);
-            } finally {
-                // Re-enable button
-                deployBtn.disabled = false;
-                deployBtn.textContent = 'Deploy Now';
+                
+            } catch (err) {
+                console.error(err);
+                addLog('❌ Connection error: ' + err.message, 'error');
+                showError('Could not connect to server. Please try again.');
             }
         });
-        
-        function showStatus(type, message) {
-            statusBox.className = `status-box ${type}`;
-            statusBox.innerHTML = message;
-            statusBox.style.display = 'block';
-        }
     </script>
 </body>
 </html>
