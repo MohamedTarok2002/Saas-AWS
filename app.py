@@ -5,6 +5,7 @@ import os
 import tempfile
 import shutil
 import subprocess
+import secrets
 from datetime import datetime
 
 app = Flask(__name__)
@@ -17,9 +18,12 @@ EC2_PUBLIC_IP = "52.90.98.13"
 S3_BUCKET_NAME = "devops-deploy-artifacts-fr-saas"
 AWS_REGION = 'us-east-1'
 
-# AWS clients – boto3 automatically uses your credentials from environment or AWS config
+# AWS clients
 s3 = boto3.client('s3', region_name=AWS_REGION)
 codepipeline = boto3.client('codepipeline', region_name=AWS_REGION)
+
+# Store deployments (in-memory for now, database later)
+deployments = {}
 
 
 def validate_github_url(url):
@@ -27,11 +31,22 @@ def validate_github_url(url):
     return re.match(pattern, url.strip()) is not None
 
 
-def generate_subdomain():
-    return f"deploy-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+def generate_deployment_id():
+    """Generate unique deployment ID"""
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    random_suffix = secrets.token_hex(4)
+    return f"deploy-{timestamp}-{random_suffix}"
 
 
-def trigger_pipeline(github_url, subdomain):
+def generate_subdomain(github_url):
+    """Generate subdomain from repo name"""
+    repo_name = github_url.rstrip('/').split('/')[-1]
+    clean_name = re.sub(r'[^a-zA-Z0-9-]', '-', repo_name).lower()
+    suffix = secrets.token_hex(3)
+    return f"{clean_name}-{suffix}"
+
+
+def trigger_pipeline(github_url, deployment_id):
     temp_dir = None
     try:
         temp_dir = tempfile.mkdtemp()
@@ -48,17 +63,26 @@ def trigger_pipeline(github_url, subdomain):
         zip_file_path = shutil.make_archive(zip_base_path, 'zip', repo_path)
         print(f"Zip created: {zip_file_path}")
 
-        print("Uploading to S3...")
+        # ============================================
+        # NEW: Upload to unique path per deployment
+        # ============================================
+        s3_key = f"deployments/{deployment_id}/source.zip"
+        
+        print(f"Uploading to S3: {s3_key}")
         with open(zip_file_path, 'rb') as f:
-            s3.upload_fileobj(f, S3_BUCKET_NAME, 'source.zip')
-        print(f"Uploaded to s3://{S3_BUCKET_NAME}/source.zip")
+            s3.upload_fileobj(f, S3_BUCKET_NAME, s3_key)
+        print(f"Uploaded to s3://{S3_BUCKET_NAME}/{s3_key}")
 
         print("Starting CodePipeline...")
         response = codepipeline.start_pipeline_execution(name=PIPELINE_NAME)
         execution_id = response['pipelineExecutionId']
         print(f"Pipeline started: {execution_id}")
 
-        return {'success': True, 'execution_id': execution_id}
+        return {
+            'success': True, 
+            'execution_id': execution_id,
+            's3_key': s3_key
+        }
 
     except Exception as e:
         print(f"Deployment failed: {e}")
@@ -120,16 +144,36 @@ def deploy():
         if not github_url or not validate_github_url(github_url):
             return jsonify({'success': False, 'error': 'Invalid GitHub URL'}), 400
 
-        subdomain = generate_subdomain()
-        print(f"Starting deployment for {github_url} → {subdomain}")
+        # Generate unique IDs
+        deployment_id = generate_deployment_id()
+        subdomain = generate_subdomain(github_url)
+        
+        print(f"=" * 50)
+        print(f"NEW DEPLOYMENT: {deployment_id}")
+        print(f"GitHub URL: {github_url}")
+        print(f"Subdomain: {subdomain}")
+        print(f"=" * 50)
 
-        result = trigger_pipeline(github_url, subdomain)
+        result = trigger_pipeline(github_url, deployment_id)
+
+        # Store deployment info
+        deployments[deployment_id] = {
+            'deployment_id': deployment_id,
+            'subdomain': subdomain,
+            'github_url': github_url,
+            's3_key': result['s3_key'],
+            'execution_id': result['execution_id'],
+            'status': 'deploying',
+            'created_at': datetime.now().isoformat()
+        }
 
         return jsonify({
             'success': True,
             'message': 'Deployment started successfully!',
+            'deployment_id': deployment_id,
             'subdomain': subdomain,
-            'execution_id': result['execution_id']
+            'execution_id': result['execution_id'],
+            's3_path': result['s3_key']
         })
 
     except Exception as e:
@@ -142,11 +186,64 @@ def check_status(execution_id):
     return jsonify(result)
 
 
+@app.route('/deployments', methods=['GET'])
+def list_deployments():
+    """List all deployments"""
+    return jsonify({
+        'success': True,
+        'count': len(deployments),
+        'deployments': list(deployments.values())
+    })
+
+
+@app.route('/deployments/<deployment_id>', methods=['GET'])
+def get_deployment(deployment_id):
+    """Get single deployment info"""
+    if deployment_id in deployments:
+        return jsonify({'success': True, 'deployment': deployments[deployment_id]})
+    return jsonify({'success': False, 'error': 'Deployment not found'}), 404
+
+
 if __name__ == '__main__':
     print("=" * 60)
-    print("DEPLOYMENT PORTAL IS NOW LIVE")
-    print(f"Bucket → {S3_BUCKET_NAME}")
-    print(f"Pipeline → {PIPELINE_NAME}")
+    print("DEPLOYFAST - MULTI-USER DEPLOYMENT SERVICE")
+    print("=" * 60)
+    print(f"Bucket    → {S3_BUCKET_NAME}")
+    print(f"Pipeline  → {PIPELINE_NAME}")
+    print(f"S3 Path   → deployments/<deployment_id>/source.zip")
+    print("=" * 60)
     print(f"Go to: http://localhost:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=False)
+
+'''
+
+```
+
+---
+
+## **What Changed**
+
+| Before | After |
+|--------|-------|
+| `source.zip` | `deployments/{deployment_id}/source.zip` |
+| `generate_subdomain()` | `generate_deployment_id()` + `generate_subdomain()` |
+| No tracking | `deployments` dict stores all info |
+| No list endpoint | `/deployments` shows all deployments |
+
+---
+
+## **New S3 Structure**
+```
+s3://devops-deploy-artifacts-fr-saas/
+│
+└── deployments/
+    ├── deploy-20241130120000-a1b2c3d4/
+    │   └── source.zip
+    │
+    ├── deploy-20241130120500-e5f6g7h8/
+    │   └── source.zip
+    │
+    └── deploy-20241130121000-i9j0k1l2/
+        └── source.zip
+'''
